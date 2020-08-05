@@ -1,14 +1,9 @@
-# -*- coding: utf-8 -*-
-"""
-Created on Tue Feb  4 17:19:48 2020
-
-@author: Ucif
-"""
-
+import time
 import tensorflow as tf
 import numpy as np
 np.random.seed(0)
 import matplotlib.pyplot as plt
+import keras
 #matplotlib inline
 from pylab import *
 from keras.models import Sequential
@@ -25,9 +20,10 @@ from keras.layers import Conv2D, ZeroPadding2D, Activation, Input, concatenate
 
 
 
-def load_data():
+
+def load_raw_data(path = "arrhythmia_data.txt",train_size=1):
     #The arrythmia dataset can be downloaded from https://archive.ics.uci.edu/ml/datasets/Arrhythmia
-    path = "arrhythmia_data.txt"
+    
     f = open( path, "r")
     data = []
     
@@ -40,30 +36,34 @@ def load_data():
     f.close()
     
     data = np.array(data).astype(np.float64)
-   
+    print(data.shape)
+    
 
     #create the class labels for input data
-    Y_train = data[:,-1:]
+    Y_train_original = data[:,-1:]
     train = data[:,:-1]
+    #split the data into train and validation set with corresponding labels
     
-#    normaliser = preprocessing.MinMaxScaler()
-#    train = normaliser.fit_transform(train)
-    
-    val = train[320:,:]
-    train = train[:320,:]
+    val = train[train_size:,:]
+    train = train[:train_size,:]
     train = train.reshape(train.shape[0],train.shape[1])
+    Y_val =(Y_train_original[train_size:,:]).astype(int)
+    Y_train =(Y_train_original[:train_size,:]).astype(int)
+    return train,val,Y_train,Y_val,Y_train_original,train_size
     
+def load_data():
+    
+    train,val,_,_,Y_train_original,train_size = load_raw_data()
     #create one hot encoding of the class labels of the data and separate them into train and test data
-    
     lb = LabelBinarizer()
-    encode = lb.fit_transform(Y_train)
+    encode = lb.fit_transform(Y_train_original)
     nb_classes = int(len(encode[0]))
     
     #one_hot_labels = keras.utils.to_categorical(labels, num_classes=10) this could also be used for one hot encoding
-    Y_val_e = encode[320:,:]
-    Y_train_e = encode[:320,:]
-    print(Y_train_e[0])
-    print(np.argmax(Y_train_e[0]))
+    Y_val_e = encode[train_size:,:]
+    Y_train_e = encode[:train_size,:]
+    
+    
     
     
     val_in = []
@@ -77,15 +77,15 @@ def load_data():
         
         images_class_n = np.asarray([row for idx,row in enumerate(val) if np.argmax(Y_val_e[idx])==n])
         val_in.append(images_class_n)
-    #print(train_in[0].shape)
     
     
+   #returns a lis of train and validation data grouped by class id
     return train_in,val_in,Y_train_e,Y_val_e,nb_classes
 
-train_in,val,Y_train,Y_val,nb_classes = load_data()
-input_shape = (train_in[0].shape[1],)
 
-def get_batch_random(batch_size,s="train"):
+
+
+def get_batch_random(batch_size,s="val"):
     """
     Create batch of APN triplets with a complete random strategy
     
@@ -119,6 +119,8 @@ def get_batch_random(batch_size,s="train"):
         #Pick another class for N, different from anchor_class
         negative_class = (anchor_class + np.random.randint(1,nb_classes)) % nb_classes
         nb_sample_available_for_class_N = X[negative_class].shape[0]
+        if nb_sample_available_for_class_N <=1:
+            continue
         
         #Pick a random pic for this negative class => N
         idx_N = np.random.randint(0, nb_sample_available_for_class_N)
@@ -141,10 +143,11 @@ def build_network(input_shape , embeddingsize):
     
     #in_ = Input(train.shape)
     net = Sequential()
-    net.add(Dense(128,  activation='relu', input_shape=input_shape))
-    net.add(Dense(128, activation='relu'))
-    net.add(Dense(256, activation='relu'))
-    net.add(Dense(4096, activation='sigmoid'))
+    net.add(Dense(1024,  activation='tanh', input_shape=input_shape))
+    net.add(Dense(512, activation='relu'))
+    net.add(Dense(1024, activation='relu'))
+    net.add(Dense(128, activation='tanh'))
+    net.add(Dense(32, activation='sigmoid'))
     net.add(Dense(embeddingsize, activation= None))
      #Force the encoding to live on the d-dimentional hypershpere
     net.add(Lambda(lambda x: K.l2_normalize(x,axis=-1)))
@@ -171,7 +174,7 @@ class TripletLossLayer(Layer):
     
 
 
-def build_model(input_shape, network, margin=0.2):
+def build_model(input_shape, network, margin=0.01):
     '''
     Define the Keras Model for training 
         Input : 
@@ -205,7 +208,7 @@ def build_model(input_shape, network, margin=0.2):
 def compute_dist(a,b):
     return np.sum(np.square(a-b))
 
-def get_batch_hard(draw_batch_size,hard_batchs_size,norm_batchs_size,network,s="train"):
+def get_batch_hard(draw_batch_size,hard_batchs_size,norm_batchs_size,network,s="val"):
     """
     Create batch of APN "hard" triplets
     
@@ -244,18 +247,18 @@ def get_batch_hard(draw_batch_size,hard_batchs_size,norm_batchs_size,network,s="
             
     selection = np.append(selection,selection2)
             
-        #triplets = [studybatch[0][selection,:], studybatch[1][selection,:],studybatch[2][selection,:]]
-    trip_A = studybatch[0][selection,:]
-    trip_B = studybatch[1][selection,:]
-    trip_C = studybatch[2][selection,:]
+    triplets = [studybatch[0][selection,:], studybatch[1][selection,:],studybatch[2][selection,:]]
+#    trip_A = studybatch[0][selection,:]
+#    trip_B = studybatch[1][selection,:]
+#    trip_C = studybatch[2][selection,:]
     
         #trip_A=np.array(trip_A)
-    return [trip_A,trip_B,trip_C]
+    return triplets
     
 def get_dataset(draw_batch_size,hard_batchs_size,norm_batchs_size,network,steps_per_epoch):
     #generate the dataset of hard triplets for training by stacking them together.
     for x in range(steps_per_epoch):
-        A,P,N = get_batch_hard(draw_batch_size,hard_batchs_size,norm_batchs_size,network,s="train")
+        A,P,N = get_batch_hard(draw_batch_size,hard_batchs_size,norm_batchs_size,network,s="val")
         if x==0:
            hard_dataset_A = A
            hard_dataset_P = P
@@ -265,32 +268,10 @@ def get_dataset(draw_batch_size,hard_batchs_size,norm_batchs_size,network,steps_
         hard_dataset_P =np.vstack((hard_dataset_P,P))
         hard_dataset_N =np.vstack((hard_dataset_N,N)) 
     return [hard_dataset_A,hard_dataset_P,hard_dataset_N]
-    
-    
-    
 
-  
-# create the base model    
-network = build_network(input_shape,embeddingsize=10)
-
-#create the dataset
-hard = get_dataset(200,16,16,network,32)
-#create the siamese network
-network_train = build_model(input_shape,network)
-#select optimiser and learning rate
-optimizer = Adam(lr = 0.00006)
-#compile the model
-network_train.compile(loss=None,optimizer=optimizer)
-#start trainin the model
-history = network_train.fit(hard,epochs=50,batch_size=32,verbose=2)
-
-
-
-
-#test the model
 
 def form_test_data(val):
-    #draws data at random from the test data to test our model. it stacks drawn data together
+    #draws data at random from the test data to test our model. it stacks sampled data using vstack
    #create empty list to store class labels
     Y = []
     #Add examples from each class to variable X
@@ -299,6 +280,8 @@ def form_test_data(val):
         #adds two examples if there are more than two examples per class
         if val[i].shape[0]>=2:
             dat_index = np.random.randint(val[i].shape[0],size=2)
+            if dat_index.all() ==0:
+                continue
             if i==0:
                 X=val[i][dat_index[0]]
                 X = np.vstack((X,val[i][dat_index[1]]))
@@ -318,7 +301,7 @@ def form_test_data(val):
             
     return np.array(X),np.array(Y)     
             
-test_X,test_Y = form_test_data(val)
+
 
 
 # This function is used to find the distance between two different embeddings
@@ -337,9 +320,12 @@ def compute_probs(network,X,Y):
     nbevaluation = int(m*(m-1)/2)
     probs = np.zeros((nbevaluation))
     y = np.zeros((nbevaluation))
+    same = np.zeros((m))
+    diff = np.zeros((m))
     
     #Compute all embeddings for all pics with current network
-    embeddings = network.predict(X[0:X.shape[0]])
+    embeddings = network.predict(X[0:m])
+    
     
     #size_embedding = embeddings.shape[1]
     
@@ -352,13 +338,40 @@ def compute_probs(network,X,Y):
                 probs[k] = compute_dist(embeddings[i,:],embeddings[j,:])
                 if (Y[i]==Y[j]):
                     y[k] = 1
-                    print("The distance between class {0} and class {1} is {2}.\tSAME".format(Y[i],Y[j],probs[k]))
-                    print('.....................................................................................')  
+                    #print("The distance between class {0} and class {1} is {2}.\tSAME".format(Y[i],Y[j],probs[k]))
+                    #print('.....................................................................................') 
+                    same[i]= probs[k]
+                    
                 else:
                     y[k] = 0
-                    print("The distance between class {0} and class {1} is {2}.\tDIFF".format(Y[i],Y[j],probs[k]))
-                    print('.....................................................................................')
+#                    print("The distance between class {0} and class {1} is {2}.\tDIFF".format(Y[i],Y[j],probs[k]))
+#                    print('.....................................................................................')
+                    diff[i]= probs[k]
                 k += 1
-    return probs,y
+    
+    return probs,y,np.sort(same)[::-1],np.sort(diff)
 
-a,b = compute_probs(network,test_X,test_Y)
+
+if __name__ == "__main__":
+    train_in,val,Y_train,Y_val,nb_classes = load_data()
+    #input_shape = (train_in[0].shape[1],)
+    input_shape = (val[0].shape[1],) 
+    # create the base model    
+    network = build_network(input_shape,embeddingsize=2)
+    
+    #create the dataset
+    hard = get_dataset(100,32,32,network,1000)
+    #create the siamese network
+    network_train = build_model(input_shape,network)
+#    #select optimiser and learning rate
+    optimizer = Adam(lr = 0.00006)
+#   
+#    #compile the model
+    network_train.compile(loss=None,optimizer=optimizer)
+#    #start trainin the model
+    t_start = time.time()
+#    history = network_train.fit(hard,epochs=100 ,batch_size=32,verbose=2)
+#    
+    network.save('network_0.01.h5')
+    
+    
