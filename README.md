@@ -13,4 +13,4 @@ The image below show a plot of the resulting embeddings from this method.![Plot 
 
 
 
-This plot is the output of [plot_embeddings](plot_embeddings.py) file.
+This plot is the output of [plot_embeddings](plot_embeddings.py) file. To plot the embeddings on the polar grid, [plots_polar_grid](plots_polar_grid.py) can be used. Also, [Plot_mean](Plot_mean.py) is used to plot the mean of classes in the embeddings.
