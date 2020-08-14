@@ -1,10 +1,14 @@
+"""
+Created on Tue Feb  4 17:19:48 2020
+
+@author: Ucif
+"""
 import time
 import tensorflow as tf
 import numpy as np
 np.random.seed(0)
 import matplotlib.pyplot as plt
 import keras
-#matplotlib inline
 from pylab import *
 from keras.models import Sequential
 from keras.optimizers import Adam
@@ -22,8 +26,19 @@ from keras.layers import Conv2D, ZeroPadding2D, Activation, Input, concatenate
 
 
 def load_raw_data(path = "arrhythmia_data.txt",train_size=1):
+	'''
     #The arrythmia dataset can be downloaded from https://archive.ics.uci.edu/ml/datasets/Arrhythmia
-    
+	This function takes the raw dataset and separate them into data and labels. It is further divided into train and test set
+	
+	argument:
+	path--path to the text file containing the arrhythmia dataset.
+	train_size--The number of trainin examples required from the dataset
+	
+	returns:
+	A list containing the train set and its labels, test set and its labels, original labels and the required train set size
+	
+    '''
+	
     f = open( path, "r")
     data = []
     
@@ -34,25 +49,34 @@ def load_raw_data(path = "arrhythmia_data.txt",train_size=1):
         
         data.append(line)
     f.close()
-    
-    data = np.array(data).astype(np.float64)
-    print(data.shape)
-    
-
-    #create the class labels for input data
+	data = np.array(data).astype(np.float64)
+   
+	#separate the data into data and labels. the last column contains the class labels
     Y_train_original = data[:,-1:]
     train = data[:,:-1]
-    #split the data into train and validation set with corresponding labels
     
+
+    #separate the dataset into training and validation set
     val = train[train_size:,:]
-    train = train[:train_size,:]
-    train = train.reshape(train.shape[0],train.shape[1])
+	train = train[:train_size,:]
+	train = train.reshape(train.shape[0],train.shape[1])
     Y_val =(Y_train_original[train_size:,:]).astype(int)
     Y_train =(Y_train_original[:train_size,:]).astype(int)
     return train,val,Y_train,Y_val,Y_train_original,train_size
     
 def load_data():
-    
+	'''
+	This function takes the preprocessed dataset and creates on hot encoding of the labels and also group the dataset in an array. 
+	Each element in the output from this function is an array with the index representing the class and the number of elements
+	in the class forming the elements in that index.
+	
+	arguments:
+	
+	returns:
+	train set and its one hot encoded labels, test set and its corresponding one hot encoded labels and the total number of classes.
+    '''
+	
+	#loads the preprocessed data
     train,val,_,_,Y_train_original,train_size = load_raw_data()
     #create one hot encoding of the class labels of the data and separate them into train and test data
     lb = LabelBinarizer()
@@ -63,13 +87,11 @@ def load_data():
     Y_val_e = encode[train_size:,:]
     Y_train_e = encode[:train_size,:]
     
-    
-    
-    
+    # A list to store validation and and train sets
     val_in = []
     train_in = []
     
-    #grouping and sorting the input data based on label id or name
+    #grouping and sorting the input data based on label id(class name)
     for n in range(nb_classes):
         images_class_n = np.asarray([row for idx,row in enumerate(train) if np.argmax(Y_train_e[idx])==n])
         train_in.append(images_class_n)
@@ -78,8 +100,6 @@ def load_data():
         images_class_n = np.asarray([row for idx,row in enumerate(val) if np.argmax(Y_val_e[idx])==n])
         val_in.append(images_class_n)
     
-    
-   #returns a lis of train and validation data grouped by class id
     return train_in,val_in,Y_train_e,Y_val_e,nb_classes
 
 
@@ -111,7 +131,7 @@ def get_batch_random(batch_size,s="val"):
         anchor_class = np.random.randint(0, nb_classes)
         nb_sample_available_for_class_AP = X[anchor_class].shape[0]
         
-        #Pick two different random pics for this class => A and P. You can use same anchor as P if there is one one element for anchor
+        #Pick two different random classes for this class => A and P. You can use same anchor as P if there is one one element for anchor
         if nb_sample_available_for_class_AP<=1:
             continue
         [idx_A,idx_P] = np.random.choice(nb_sample_available_for_class_AP,size=2 ,replace=False)
@@ -122,7 +142,7 @@ def get_batch_random(batch_size,s="val"):
         if nb_sample_available_for_class_N <=1:
             continue
         
-        #Pick a random pic for this negative class => N
+        #Pick a random class for this negative class => N
         idx_N = np.random.randint(0, nb_sample_available_for_class_N)
 
         triplets[0][i,:] = X[anchor_class][idx_A,:]
@@ -149,7 +169,7 @@ def build_network(input_shape , embeddingsize):
     net.add(Dense(128, activation='tanh'))
     net.add(Dense(32, activation='sigmoid'))
     net.add(Dense(embeddingsize, activation= None))
-     #Force the encoding to live on the d-dimentional hypershpere
+    #Normalise encoding unto the 2-dimentional hypershpere
     net.add(Lambda(lambda x: K.l2_normalize(x,axis=-1)))
 
     
@@ -181,7 +201,8 @@ def build_model(input_shape, network, margin=0.01):
             input_shape : shape of input images
             network : Neural network to train outputing embeddings
             margin : minimal distance between Anchor-Positive and Anchor-Negative for the lossfunction (alpha)
-    
+		return:
+			 A model with three inputs and one output
     '''
      # Define the tensors for the three input images
     anchor_input = Input(input_shape, name="anchor_input")
@@ -248,15 +269,24 @@ def get_batch_hard(draw_batch_size,hard_batchs_size,norm_batchs_size,network,s="
     selection = np.append(selection,selection2)
             
     triplets = [studybatch[0][selection,:], studybatch[1][selection,:],studybatch[2][selection,:]]
-#    trip_A = studybatch[0][selection,:]
-#    trip_B = studybatch[1][selection,:]
-#    trip_C = studybatch[2][selection,:]
-    
-        #trip_A=np.array(trip_A)
+
     return triplets
     
 def get_dataset(draw_batch_size,hard_batchs_size,norm_batchs_size,network,steps_per_epoch):
-    #generate the dataset of hard triplets for training by stacking them together.
+	'''
+    generate the dataset of hard triplets for training by stacking them together.
+	arguments:
+	draw_batch_size--the size of the batch size from which to draw the training set
+	hard_batchs_size--the size of the required hard batches
+	norm_batchs_size--the size of normal batches
+	network--the model of the siamese network
+	steps_per_epoch-- steps per epoch to be used for training. It can be greater than the steps per epoch.
+	
+	return:
+	A mix of hard and normal triplets for training
+	
+	
+	'''
     for x in range(steps_per_epoch):
         A,P,N = get_batch_hard(draw_batch_size,hard_batchs_size,norm_batchs_size,network,s="val")
         if x==0:
@@ -271,17 +301,26 @@ def get_dataset(draw_batch_size,hard_batchs_size,norm_batchs_size,network,steps_
 
 
 def form_test_data(val):
-    #draws data at random from the test data to test our model. it stacks sampled data using vstack
+    '''
+	draws data at random from the test data to test our model. it stacks drawn data together. 
+	
+	argment:
+	val -- validation dataset
+	
+	'''
    #create empty list to store class labels
     Y = []
-    #Add examples from each class to variable X
+    #Add examples from each class to variable X which holds the training data
     for i in range(nb_classes):
+	#Add label id to Y and stack the corresponding data together in X
         Y.append(i)
-        #adds two examples if there are more than two examples per class
+        #stacks examples together if there are more than two examples per class
         if val[i].shape[0]>=2:
             dat_index = np.random.randint(val[i].shape[0],size=2)
+			#if there is only one item, continue
             if dat_index.all() ==0:
                 continue
+			#if it is the first item, assign X to the first item
             if i==0:
                 X=val[i][dat_index[0]]
                 X = np.vstack((X,val[i][dat_index[1]]))
@@ -293,6 +332,7 @@ def form_test_data(val):
             Y.append(i)
         else:
             dat_index = np.random.randint(val[i].shape[0],size =1)
+			#if it is the first item, only add that to X
             if i==0:
                 X=val[i][dat_index]
                 continue
@@ -316,7 +356,9 @@ def compute_probs(network,X,Y):
         probs : array of shape (m,m) containing distances
     
     '''
+	#gets the shape of data whose embedding is to be computed
     m = X.shape[0]
+	#calculates the number of evaluations to make
     nbevaluation = int(m*(m-1)/2)
     probs = np.zeros((nbevaluation))
     y = np.zeros((nbevaluation))
@@ -329,7 +371,7 @@ def compute_probs(network,X,Y):
     
     #size_embedding = embeddings.shape[1]
     
-    #For each pics of our dataset
+    #For each disease in our dataset
     k = 0
     for i in range(m):
             #Against all other images
@@ -354,24 +396,33 @@ def compute_probs(network,X,Y):
 
 if __name__ == "__main__":
     train_in,val,Y_train,Y_val,nb_classes = load_data()
-    #input_shape = (train_in[0].shape[1],)
-    input_shape = (val[0].shape[1],) 
+    input_shape = (train_in[0].shape[1],)
     # create the base model    
-    network = build_network(input_shape,embeddingsize=2)
+	network = build_network(input_shape,embeddingsize=2)
     
     #create the dataset
-    hard = get_dataset(100,32,32,network,1000)
+	hard = get_dataset(100,32,32,network,1000)
+	
     #create the siamese network
-    network_train = build_model(input_shape,network)
-#    #select optimiser and learning rate
+	network_train = build_model(input_shape,network)
+	
+    #select optimiser and learning rate
     optimizer = Adam(lr = 0.00006)
-#   
-#    #compile the model
+   
+   #compile the model
     network_train.compile(loss=None,optimizer=optimizer)
-#    #start trainin the model
+	
+    #start training the model
     t_start = time.time()
-#    history = network_train.fit(hard,epochs=100 ,batch_size=32,verbose=2)
-#    
+    history = network_train.fit(hard,epochs=100 ,batch_size=32,verbose=2) 
+	#save the trained model
     network.save('network_0.01.h5')
-    
+	t_stop= time.time()
+	
+	total_time = t_stop-t_start 
+	
+	#This part should be uncommented to test the trained model
+    # test_X,test_Y = form_test_data(train)
+    # network = keras.models.load_model('network.h5')
+    # embeddings = network.predict(test_X)
     
