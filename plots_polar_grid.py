@@ -21,6 +21,13 @@ mark = ["o","v","^","<",">","*","s","x","D","1","2","3","4","X","+","_","d"]
 col= ["gold","indigo","yellow","blue","orange","pink","chartreuse","brown","green","gray","black","purple","cyan","magenta","olive","red","aqua"]
 
 def plot(Y_val,embeddings):
+
+	'''
+	plots the samples using polar grids
+	arguments:
+	Y_val--the labels of the embeddings to be plotted. this is used in forming the lengend
+	embeddings--the embeddings to be plotted
+	'''
     d =plt.subplot(projection='polar')
 
     fig_size = plt.rcParams["figure.figsize"]
@@ -37,7 +44,7 @@ def plot(Y_val,embeddings):
     
     
     for x in range(len(Y_val)):
-        
+        #finds the x and y cordinates for all samples in the dataset supplied for plotting
         embed_1d = embeddings[x,0]
         embed_2d = embeddings[x,1]
         angle = math.atan((embed_2d/embed_1d))
@@ -48,6 +55,8 @@ def plot(Y_val,embeddings):
         r = Y_val[x]
         if math.isnan(embed_1d):
             continue
+			
+		#no samples exist for class 11,12,13 so the radius for these classes are set to 14,15,16
         elif Y_val[x]==14:
             r = 11
         elif Y_val[x]==15:
@@ -76,12 +85,11 @@ def plot(Y_val,embeddings):
 
 
 if __name__== "__main__":
+	#load the dataset to be used
     train,val,Y_train,Y_val,Y_train_original,_= load_raw_data(train_size=451)
+	#loads the the trained model to be used
     network = keras.models.load_model('best.h5')
+	#calculates the embeddings
     embeddings = network.predict(train)
     plot(Y_train,embeddings)
-    #print(embeddings)
-
     
-
-
