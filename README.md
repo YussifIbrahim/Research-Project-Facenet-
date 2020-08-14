@@ -13,4 +13,4 @@ The image below show a plot of the resulting embeddings from this method.![Plot 
 
 
 
-This plot is the output of [plot_embeddings](plot_embeddings.py)file.
+This plot is the output of [plot_embeddings](plot_embeddings.py) file.
