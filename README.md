@@ -7,3 +7,6 @@ This code contains methods for loading the arythmia dataset. All the dataset hav
 The network is trained for 300 epochs. The resulting model creates embeddings maintains a small distance between similar pairs and large distance between non-similar cases of the disease. Using the distance, the method finds similar and non similar cases of the disease. 
 
 The model created is used to test the similarity between examples from the test set. This requires two inputs and their corresponding classes. This is obtained by form_test_data(val). This inputs are fed to compute_probs(network,X,Y) function and it finds the distance between the two inputs. It is observed that the embeddings have smaller distance between similar examples and large distance between diffferent examples.
+
+
+The image below show a plot of the resulting embeddings from this method.![Plot of Metric embedding](allplot.png)
