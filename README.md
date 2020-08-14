@@ -9,4 +9,8 @@ The network is trained for 300 epochs. The resulting model creates embeddings ma
 The model created is used to test the similarity between examples from the test set. This requires two inputs and their corresponding classes. This is obtained by form_test_data(val). This inputs are fed to compute_probs(network,X,Y) function and it finds the distance between the two inputs. It is observed that the embeddings have smaller distance between similar examples and large distance between diffferent examples.
 
 
-The image below show a plot of the resulting embeddings from this method.![Plot of Metric embedding](allplots-epoch100.png). This plot is the output of [plot_embeddings](plot_embeddings.py)file.
+The image below show a plot of the resulting embeddings from this method.![Plot of Metric embedding](allplots-epoch100.png). 
+
+
+
+This plot is the output of [plot_embeddings](plot_embeddings.py)file.
