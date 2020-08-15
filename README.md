@@ -13,4 +13,4 @@ The image below show a plot of the resulting embeddings from this method.![Plot 
 
 
 
-This plot is the output of [plot_embeddings](plot_embeddings.py) file in this repository. To plot the embeddings on the polar grid, [plots_polar_grid](plots_polar_grid.py) can be used. Also, [Plot_mean](Plot_mean.py) is used to plot the mean of all classes in the embeddings.
+This plot is the output of [plot_embeddings](plot_embeddings.py) file in this repository. To plot the embeddings on the polar grid, [plots_polar_grid](plots_polar_grid.py) can be used. Also, [Plot_mean](Plot_mean.py) is used to plot the mean of all classes in the embeddings. Using the mean, test cases closer to a particular mean is regarded as member of the class(of the mean). Misclassifications this mean so the results should be visualised before using this method for classifications
